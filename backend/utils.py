@@ -1,6 +1,8 @@
 import re
 import os
 from dotenv import load_dotenv
+from urlextract import URLExtract
+import requests
 
 load_dotenv()
 
@@ -13,7 +15,7 @@ def sanitize_text(text: str) -> str:
 
     return text
 
-from urlextract import URLExtract
+
 
 extractor = URLExtract()
 
@@ -46,7 +48,7 @@ def extract_signals(text: str) -> dict:
     return signals
 
 
-import requests
+
 
 SAFE_BROWSING_KEY =os.getenv("SAFE_BROWSING_KEY")
 
@@ -71,7 +73,7 @@ def check_safe_browsing(urls: list) -> str:
         }
 
         response = requests.post(endpoint, json=payload,timeout=4)
-
+#If matched it is flagged
         if response.json():
             return "flagged"
 
@@ -82,4 +84,5 @@ def check_safe_browsing(urls: list) -> str:
 
 
 #mask sensitive info, extract suspicious keywords, check safe browser 
+
 
