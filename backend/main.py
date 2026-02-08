@@ -17,11 +17,11 @@ app.add_middleware(
 async def analyze_fraud(request: FraudRequest):
     start_time = time.time()
     
-    # 1. Sanitize & Static Check
+    #Sanitize & Static Check
     clean_text = sanitize_text(request.text)
     signals = extract_signals(request.text)
     
-    # Actually run the Safe Browsing Check
+    #Actually run the Safe Browsing Check
     sb_status = "unchecked"
     if signals["urls"]:
         sb_status = check_safe_browsing(signals["urls"])
@@ -29,22 +29,32 @@ async def analyze_fraud(request: FraudRequest):
     # Add this to signals so the AI sees it
     signals["safe_browsing"] = sb_status
     
-    #  AI ANALYSIS
+    
     # The AI now gets the safe browsing result in the context
     ai_result = analyze_with_ai(clean_text, signals)
     
     processing_time = int((time.time() - start_time) * 1000)
     
-    # 3. Merge results
+    #Merge results
+
+    COLOR_MAP={
+    "SAFE": "#00C851",
+    "SUSPICIOUS": "#FFA500",
+    "HIGH_RISK": "#FF4B4B",
+    "ERROR": "#808080",
+    "UNKNOWN":"#808080"
+        }
+    verdict=ai_result.get("verdict", "UNKNOWN").upper().replace(" ","_")
     return {
+        
         "status": "success",
         "request_id": str(uuid.uuid4()),
         "input_type": "text",
         "sanitized_input": clean_text,
         "result": {
             "risk_score": ai_result.get("risk_score", 0),
-            "verdict": ai_result.get("verdict", "UNKNOWN"),
-            "verdict_color": ai_result.get("verdict_color", "#808080"),
+           "verdict":verdict,
+            "verdict_color": COLOR_MAP.get(verdict, "#808080"),
             "confidence": ai_result.get("confidence", 0.0)
         },
         "analysis": {
