@@ -1,6 +1,8 @@
 from pydantic import BaseModel
 from typing import List, Optional
 
+# --- Sub-models for nested data ---
+
 class Trigger(BaseModel):
     type: str
     description: str
@@ -26,6 +28,11 @@ class Result(BaseModel):
     verdict: str
     verdict_color: str
     confidence: float
+
+# --- Main Request & Response Models ---
+
+class FraudRequest(BaseModel):  # <--- THIS WAS MISSING
+    text: str
 
 class FraudResponse(BaseModel):
     status: str
