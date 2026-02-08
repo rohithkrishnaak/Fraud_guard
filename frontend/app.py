@@ -4,7 +4,7 @@ import requests
 
 st.title("Fraud Guard")
 
-userinput = st.text_area("Paste suspicious text / URL")
+user_input = st.text_area("Paste suspicious text / URL")
 
 if st.button("Analyze"):
     if userinput.strip() == "":
@@ -13,14 +13,19 @@ if st.button("Analyze"):
         with st.spinner("Analyzing..."):
             response = requests.post("http://127.0.0.1:8000/analyze", json={"text": user_input}).json()
             result = response["result"]
-            st.markdown(f"""
-<div class="card" style="border-left: 6px solid {result['verdict_color']}">
-    <h2 style="color:{result['verdict_color']}">{result['verdict']}</h2>
-    <p><b>Risk Score:</b> {result['risk_score']}</p>
-    <p><b>Confidence:</b> {result['confidence']}</p>
-</div>
-""", unsafe_allow_html=True)
-
+            st.markdown(
+            f"""
+            <div style="background-color:{response['result']['verdict_color']};
+                        padding:16px;
+                        border-radius:8px;
+                        color:white;">
+                <h3>{response['result']['verdict'].replace('_', ' ')}</h3>
+                <p>Risk Score: {response['result']['risk_score']}</p>
+                <p>Confidence: {int(response['result']['confidence']*100)}%</p>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
             st.subheader("Why is this risky?")
             for reason in response["explanation"]:
                 st.write("•", reason)
@@ -43,6 +48,5 @@ if st.button("Analyze"):
             
 
         ##
-
 
 
