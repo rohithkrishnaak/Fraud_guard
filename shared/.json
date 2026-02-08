@@ -1,0 +1,48 @@
+{
+  "status": "success",
+  "request_id": "uuid",
+  "input_type": "text | email | url | phone",
+  "sanitized_input": "Your account [ACCOUNT_REMOVED] is blocked...",
+  "result": {
+    "risk_score": 85,
+    "verdict": "HIGH_RISK",
+    "verdict_color": "#FF4B4B",
+    "confidence": 0.88
+  },
+  "analysis": {
+    "psychological_triggers": [
+      {
+        "type": "Urgency",
+        "description": "Demands immediate action using phrases like 'verify now'."
+      },
+      {
+        "type": "Authority Impersonation",
+        "description": "Falsely claims to be from Cyber Police."
+      }
+    ],
+    "technical_flags": [
+      {
+        "type": "Malicious Link",
+        "description": "Shortened URL redirects to a known phishing domain.",
+        "severity": "high"
+      },
+      {
+        "type": "Header Mismatch",
+        "description": "Email claims to be from Chase but sent from @gmail.com.",
+        "severity": "medium"
+      }
+    ],
+    "signals": {
+      "regex_hits": ["urgent action", "account blocked"],
+      "safe_browsing": "flagged",
+      "phone_check": "unknown",
+      "llm_confidence": 0.9
+    }
+  },
+  "explanation": [
+    "The message creates panic to force quick action.",
+    "It impersonates an authority figure to gain trust.",
+    "The included link is associated with phishing activity."
+  ],
+  "processing_time_ms": 1320
+}
