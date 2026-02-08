@@ -7,7 +7,7 @@ st.title("Fraud Guard")
 user_input = st.text_area("Paste suspicious text / URL")
 
 if st.button("Analyze"):
-    if userinput.strip() == "":
+    if user_input.strip() == "":
         st.error("Please paste some text or URL")
     else:
         with st.spinner("Analyzing..."):
@@ -48,5 +48,6 @@ if st.button("Analyze"):
             
 
         ##
+
 
 
