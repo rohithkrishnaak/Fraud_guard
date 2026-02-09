@@ -4,7 +4,7 @@ import requests
 # ---------------- PAGE CONFIG ----------------
 st.set_page_config(page_title="Fraud Guard", layout="centered")
 
-# ---------------- BACKGROUND IMAGE ----------------
+# ---------------- BACKGROUND & STYLES ----------------
 st.markdown(
     """
     <style>
@@ -14,7 +14,7 @@ st.markdown(
         background-attachment: fixed;
     }
     .glass {
-        background: rgba(255, 255, 255, 0.88);
+        background: rgba(255, 255, 255, 0.9);
         padding: 25px;
         border-radius: 16px;
         box-shadow: 0 8px 30px rgba(0,0,0,0.15);
@@ -38,79 +38,88 @@ st.markdown(
     unsafe_allow_html=True
 )
 
+# ---------------- SESSION STATE INIT ----------------
+if "response" not in st.session_state:
+    st.session_state.response = None
+
 # ---------------- MAIN CARD ----------------
 st.markdown("<div class='glass'>", unsafe_allow_html=True)
-
 st.markdown("<h1 style='text-align:center;'>Welcome to Fraud Guard</h1>", unsafe_allow_html=True)
 st.markdown(
     "<p style='text-align:center; font-size:16px; color:#555;'>"
-    "“Modern problems require modern solutions.”</p>",
+    "Modern problems require modern solutions.</p>",
     unsafe_allow_html=True
 )
-
-st.markdown("<br>", unsafe_allow_html=True)
 
 st.markdown("**Paste suspicious mail / URL here**")
 user_input = st.text_area("", height=150)
 
-# ---------------- ANALYSE BUTTON ----------------
 analyze = st.button("🔍 ANALYSE")
-
 st.markdown("</div>", unsafe_allow_html=True)
 
-# ---------------- RESULT SECTION ----------------
+# ---------------- ANALYZE LOGIC ----------------
 if analyze:
     if user_input.strip() == "":
         st.error("Please paste some text or URL")
     else:
-        with st.spinner("Analyzing..."):
-            response = requests.post(
-                "http://127.0.0.1:8000/analyze",
-                json={"text": user_input}
-            ).json()
+        try:
+            with st.spinner("Analyzing..."):
+                res = requests.post(
+                    "http://127.0.0.1:8000/analyze",
+                    json={"text": user_input},
+                    timeout=20   # 🔥 VERY IMPORTANT
+                )
+                res.raise_for_status()
+                st.session_state.response = res.json()
+        except requests.exceptions.RequestException as e:
+            st.error("Backend is not responding.")
+            st.error(str(e))
+            st.session_state.response = None
 
-            result = response["result"]
+# ---------------- RESULT DISPLAY ----------------
+response = st.session_state.response
 
-            # Verdict Box
-            st.markdown(
-                f"""
-                <div class='verdict-box' style='background-color:{result['verdict_color']}'>
-                    <h2>{result['verdict'].replace('_', ' ')}</h2>
-                    <div style="display:flex; justify-content:space-around;">
-                        <div class='metric'>Risk Score<br>{result['risk_score']}</div>
-                        <div class='metric'>Confidence<br>{int(result['confidence']*100)}%</div>
-                    </div>
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
+if response:
+    result = response["result"]
 
-            st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown(
+        f"""
+        <div class='verdict-box' style='background-color:{result['verdict_color']}'>
+            <h2>{result['verdict'].replace('_', ' ')}</h2>
+            <div style="display:flex; justify-content:space-around;">
+                <div class='metric'>Risk Score<br>{result['risk_score']}</div>
+                <div class='metric'>Confidence<br>{int(result['confidence']*100)}%</div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
 
-            # ---------------- ACTION BUTTONS ----------------
-            col1, col2, col3 = st.columns(3)
+    st.markdown("<br>", unsafe_allow_html=True)
 
-            with col1:
-                show_why = st.button("Why is this Risky?")
-            with col2:
-                show_psy = st.button("Psychological Triggers")
-            with col3:
-                show_tech = st.button("Technical Flags")
+    # ---------------- ACTION BUTTONS ----------------
+    col1, col2, col3 = st.columns(3)
 
-            # ---------------- MESSAGE BOX ----------------
-            if show_why:
-                st.info("\n".join(response["explanation"]))
+    with col1:
+        show_why = st.button("Why is this Risky?")
+    with col2:
+        show_psy = st.button("Psychological Triggers")
+    with col3:
+        show_tech = st.button("Technical Flags")
 
-            if show_psy:
-                if response["analysis"]["psychological_triggers"]:
-                    for t in response["analysis"]["psychological_triggers"]:
-                        st.warning(f"**{t['type']}** — {t['description']}")
-                else:
-                    st.success("No psychological manipulation detected.")
+    if show_why:
+        st.info("\n".join(response["explanation"]))
 
-            if show_tech:
-                if response["analysis"]["technical_flags"]:
-                    for f in response["analysis"]["technical_flags"]:
-                        st.error(f"**{f['type']} ({f['severity']})** — {f['description']}")
-                else:
-                    st.success("No technical threats detected.")
+    if show_psy:
+        if response["analysis"]["psychological_triggers"]:
+            for t in response["analysis"]["psychological_triggers"]:
+                st.warning(f"**{t['type']}** — {t['description']}")
+        else:
+            st.success("No psychological manipulation detected.")
+
+    if show_tech:
+        if response["analysis"]["technical_flags"]:
+            for f in response["analysis"]["technical_flags"]:
+                st.error(f"**{f['type']} ({f['severity']})** — {f['description']}")
+        else:
+            st.success("No technical threats detected.")
