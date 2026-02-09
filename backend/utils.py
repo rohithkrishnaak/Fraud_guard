@@ -18,17 +18,22 @@ def sanitize_text(text: str) -> str:
 
 extractor = URLExtract()
 
+# Open utils.py and REPLACE the extract_signals function with this:
+
 def extract_signals(text: str) -> dict:
     signals = {
         "regex_hits": [],
         "urls": []
     }
-    # Keywords which help to detect spam
-    # Expanded list to match the logic in main_ml.py
+    
+    # EXPANDED Keyword List (Categorized for better detection)
     keywords = [
-        "urgent", "verify", "blocked", "suspended", "prize", 
-        "winner", "account", "otp", "deadline", "immediate", 
-        "bank", "irs", "password", "credit", "transfer"
+        # Urgency
+        "urgent", "immediate", "deadline", "suspended", "blocked", "expires", "act now",
+        # Financial
+        "bank", "verify", "account", "otp", "password", "pin", "cvv", "irs", "tax", "credit", "debit",
+        # Reward / Bait (The ones you were missing!)
+        "winner", "won", "prize", "reward", "lottery", "cash", "gift", "claim", "exclusive"
     ]
 
     lowered = text.lower()
