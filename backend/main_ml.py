@@ -4,7 +4,8 @@ from transformers import pipeline
 import uuid
 import time
 from schemas import FraudResponse, FraudRequest
-from utils import sanitize_text, extract_signals, check_safe_browsing
+# --- UPDATED IMPORT ---
+from utils import sanitize_text, extract_signals, check_safe_browsing, translate_to_english
 
 app = FastAPI()
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
@@ -30,13 +31,13 @@ def analyze_with_ml_logic(text: str, signals: dict) -> dict:
 
     # Rule: Urgency
     if any(x in ["urgent", "immediate", "suspended", "deadline"] for x in regex_hits):
-        risk_score += 25  # <--- NEW: Penalize for urgency
+        risk_score += 25  # Penalize for urgency
         triggers.append({"type": "Urgency", "description": "High-pressure language detected."})
         explanation.append("Message uses urgency tactics to force action.")
 
     # Rule: Financial / Sensitive
     if any(x in ["bank", "verify", "account", "irs", "password", "otp"] for x in regex_hits):
-        risk_score += 20  # <--- NEW: Penalize for sensitive keywords
+        risk_score += 20  # Penalize for sensitive keywords
         triggers.append({"type": "Financial", "description": "Requests sensitive financial or login info."})
 
     # Rule: Domain Age
@@ -80,16 +81,34 @@ def analyze_with_ml_logic(text: str, signals: dict) -> dict:
 @app.post("/analyze", response_model=FraudResponse)
 async def analyze_fraud(request: FraudRequest):
     start_time = time.time()
-    clean_text = sanitize_text(request.text)
-    signals = extract_signals(request.text)
+    
+    # --- 1. TRANSLATION LAYER (NEW) ---
+    # Translate first so the ML model understands non-English input
+    trans_result = translate_to_english(request.text)
+    text_to_analyze = trans_result["translated"]
+    
+    # --- 2. SANITIZE & SIGNAL EXTRACTION ---
+    # Use the TRANSLATED text for analysis
+    clean_text = sanitize_text(text_to_analyze)
+    signals = extract_signals(text_to_analyze)
     
     if signals["urls"]:
         signals["safe_browsing"] = check_safe_browsing(signals["urls"])
     else:
         signals["safe_browsing"] = "clean"
     
+    # --- 3. RUN ANALYSIS ---
     ml_result = analyze_with_ml_logic(clean_text, signals)
     
+    # --- 4. APPEND MULTILINGUAL FLAGS ---
+    # If we translated it, add a flag so the frontend knows
+    if trans_result["is_translated"]:
+        ml_result["analysis"]["technical_flags"].append({
+            "type": "Multilingual Detection", 
+            "description": f"Detected {trans_result['src_lang']}. Analyzed as: '{text_to_analyze[:30]}...'",
+            "severity": "low"
+        })
+
     return {
         "status": "success",
         "request_id": str(uuid.uuid4()),
