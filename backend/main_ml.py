@@ -1,70 +1,70 @@
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from transformers import pipeline
-import json
+import uuid
+import time
+from schemas import FraudResponse, FraudRequest
+from utils import sanitize_text, extract_signals, check_safe_browsing
 
-# Load a tiny, pre-trained spam detection model (Runs locally, no internet needed after 1st run)
-# Model: https://huggingface.co/mrm8488/bert-tiny-finetuned-sms-spam-detection
-print("⏳ Loading ML Model... (This happens once)")
+app = FastAPI()
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+
+print("⏳ Loading ML Model...")
 spam_classifier = pipeline("text-classification", model="mrm8488/bert-tiny-finetuned-sms-spam-detection")
 print("✅ ML Model Loaded!")
 
-def analyze_with_ml(text: str, signals: dict) -> dict:
-    """
-    Analyzes text using a Local BERT Model + Logic Rules.
-    No API Keys required. No Prompting.
-    """
-    
-    # 1. Run the ML Model
-    # Output looks like: [{'label': 'LABEL_1', 'score': 0.98}] (LABEL_1 = Spam, LABEL_0 = Ham)
-    prediction = spam_classifier(text[:512])[0] # BERT handles max 512 chars well
-    
+def analyze_with_ml_logic(text: str, signals: dict) -> dict:
+    # 1. BERT Model Analysis
+    prediction = spam_classifier(text[:512])[0]
     is_spam = prediction['label'] == 'LABEL_1'
     confidence = prediction['score']
     
-    # 2. Calculate Risk Score (0-100)
-    # If ML says Spam, start high. If Safe Browsing flagged it, max it out.
+    # Base Score from ML Model
     risk_score = int(confidence * 100) if is_spam else int((1 - confidence) * 20)
     
-    if signals.get("safe_browsing") == "flagged":
-        risk_score = 99
-        is_spam = True
-
-    # 3. Generate Verdict
-    if risk_score > 75:
-        verdict = "HIGH_RISK"
-        color = "#FF4B4B"
-    elif risk_score > 40:
-        verdict = "SUSPICIOUS"
-        color = "#FFA500"
-    else:
-        verdict = "SAFE"
-        color = "#00C851"
-
-    # 4. Generate Explanations (Logic-Based, since ML doesn't speak)
     explanation = []
     triggers = []
     
-    # Rule: ML Verdict
-    if is_spam:
-        explanation.append(f"ML Model detected patterns matching known spam/phishing (Confidence: {int(confidence*100)}%).")
-    else:
-        explanation.append("ML Model analysis indicates this text follows normal communication patterns.")
-
-    # Rule: Urgency Keywords
+    # 2. Logic Rules (These now INCREASE the score)
     regex_hits = signals.get("regex_hits", [])
-    if any(x in ["urgent", "immediate", "suspended"] for x in regex_hits):
-        triggers.append({"type": "Urgency", "description": "Uses high-pressure language to force action."})
-        explanation.append("Message uses urgency tactics to bypass critical thinking.")
 
-    # Rule: Financial Keywords
-    if any(x in ["bank", "verify", "account", "irs"] for x in regex_hits):
-        triggers.append({"type": "Financial", "description": "Requests sensitive financial actions."})
-    
+    # Rule: Urgency
+    if any(x in ["urgent", "immediate", "suspended", "deadline"] for x in regex_hits):
+        risk_score += 25  # <--- NEW: Penalize for urgency
+        triggers.append({"type": "Urgency", "description": "High-pressure language detected."})
+        explanation.append("Message uses urgency tactics to force action.")
+
+    # Rule: Financial / Sensitive
+    if any(x in ["bank", "verify", "account", "irs", "password", "otp"] for x in regex_hits):
+        risk_score += 20  # <--- NEW: Penalize for sensitive keywords
+        triggers.append({"type": "Financial", "description": "Requests sensitive financial or login info."})
+
+    # Rule: Domain Age
+    domain_age = signals.get("domain_age")
+    if domain_age is not None:
+        if domain_age > -1 and domain_age < 30:
+            risk_score += 40
+            triggers.append({"type": "New Domain", "description": f"Website is only {domain_age} days old."})
+            explanation.append(f"HIGH RISK: The domain was registered only {domain_age} days ago.")
+        elif domain_age > 3650: # 10 years
+            risk_score -= 10
+            explanation.append(f"Domain is trusted (aged {domain_age} days).")
+
     # Rule: Safe Browsing
     if signals.get("safe_browsing") == "flagged":
-        triggers.append({"type": "Malware", "description": "Link matches Google Threat Database."})
-        explanation.append("The link provided is confirmed malicious by Google Safe Browsing.")
+        risk_score = 99
+        triggers.append({"type": "Malware", "description": "Google Safe Browsing Flag."})
+    
+    # 3. Finalize Score
+    risk_score = max(0, min(100, risk_score))
+    
+    if risk_score > 75: verdict = "HIGH_RISK"; color = "#FF4B4B"
+    elif risk_score > 40: verdict = "SUSPICIOUS"; color = "#FFA500"
+    else: verdict = "SAFE"; color = "#00C851"
 
-    # 5. Construct Final JSON
+    if is_spam: explanation.append(f"ML Model detected spam patterns.")
+    else: explanation.append("ML Model sees normal patterns.")
+
     return {
         "risk_score": risk_score,
         "verdict": verdict,
@@ -72,18 +72,46 @@ def analyze_with_ml(text: str, signals: dict) -> dict:
         "confidence": round(confidence, 2),
         "analysis": {
             "psychological_triggers": triggers,
-           # NEW LOGIC: Only add the dictionary if the condition is true
-            "technical_flags": [
-                item for item in [
-                    {"type": "Keywords", "description": f"Found: {', '.join(regex_hits)}", "severity": "medium"} if regex_hits else None,
-                    {"type": "ML Detection", "description": "Pattern matches spam dataset", "severity": "high"} if is_spam else None
-                ] if item is not None
-            ]
+            "technical_flags": []
         },
         "explanation": explanation
     }
 
-# Test Block
-if __name__ == "__main__":
-    test = "URGENT: Your account is suspended. Click here."
-    print(analyze_with_ml(test, {"regex_hits": ["urgent"], "safe_browsing": "clean"}))
+@app.post("/analyze", response_model=FraudResponse)
+async def analyze_fraud(request: FraudRequest):
+    start_time = time.time()
+    clean_text = sanitize_text(request.text)
+    signals = extract_signals(request.text)
+    
+    if signals["urls"]:
+        signals["safe_browsing"] = check_safe_browsing(signals["urls"])
+    else:
+        signals["safe_browsing"] = "clean"
+    
+    ml_result = analyze_with_ml_logic(clean_text, signals)
+    
+    return {
+        "status": "success",
+        "request_id": str(uuid.uuid4()),
+        "input_type": "text",
+        "sanitized_input": clean_text,
+        "result": {
+            "risk_score": ml_result["risk_score"],
+            "verdict": ml_result["verdict"],
+            "verdict_color": ml_result["verdict_color"],
+            "confidence": ml_result["confidence"]
+        },
+        "analysis": {
+            "psychological_triggers": ml_result["analysis"]["psychological_triggers"],
+            "technical_flags": ml_result["analysis"]["technical_flags"],
+            "signals": {
+                "regex_hits": signals["regex_hits"],
+                "safe_browsing": signals["safe_browsing"],
+                "phone_check": "unchecked",
+                "llm_confidence": 0.0,
+                "domain_age": signals.get("domain_age") 
+            }
+        },
+        "explanation": ml_result["explanation"],
+        "processing_time_ms": int((time.time() - start_time) * 1000)
+    }
