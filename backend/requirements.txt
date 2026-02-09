@@ -4,4 +4,7 @@ pydantic
 requests
 python-dotenv
 google-generativeai
+
 urlextract
+deep-translator
+langdetect
