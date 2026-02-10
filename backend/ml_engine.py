@@ -8,63 +8,65 @@ spam_classifier = pipeline("text-classification", model="mrm8488/bert-tiny-finet
 print("✅ ML Model Loaded!")
 
 def analyze_with_ml(text: str, signals: dict) -> dict:
-    """
-    Analyzes text using a Local BERT Model + Logic Rules.
-    No API Keys required. No Prompting.
-    """
-    
     # 1. Run the ML Model
-    # Output looks like: [{'label': 'LABEL_1', 'score': 0.98}] (LABEL_1 = Spam, LABEL_0 = Ham)
-    prediction = spam_classifier(text[:512])[0] # BERT handles max 512 chars well
-    
+    prediction = spam_classifier(text[:512])[0]
     is_spam = prediction['label'] == 'LABEL_1'
     confidence = prediction['score']
     
-    # 2. Calculate Risk Score (0-100)
-    # If ML says Spam, start high. If Safe Browsing flagged it, max it out.
-    risk_score = int(confidence * 100) if is_spam else int((1 - confidence) * 20)
-    
-    if signals.get("safe_browsing") == "flagged":
-        risk_score = 99
-        is_spam = True
+    # 2. Base Risk Calculation
+    # If ML says Spam, start high. If Safe, start low.
+    risk_score = int(confidence * 80) if is_spam else int((1 - confidence) * 10)
 
-    # 3. Generate Verdict
-    if risk_score > 75:
-        verdict = "HIGH_RISK"
-        color = "#FF4B4B"
-    elif risk_score > 40:
-        verdict = "SUSPICIOUS"
-        color = "#FFA500"
-    else:
-        verdict = "SAFE"
-        color = "#00C851"
-
-    # 4. Generate Explanations (Logic-Based, since ML doesn't speak)
-    explanation = []
-    triggers = []
-    
-    # Rule: ML Verdict
-    if is_spam:
-        explanation.append(f"ML Model detected patterns matching known spam/phishing (Confidence: {int(confidence*100)}%).")
-    else:
-        explanation.append("ML Model analysis indicates this text follows normal communication patterns.")
-
-    # Rule: Urgency Keywords
+    # 3. HEURISTIC RULES (This fixes your issue)
     regex_hits = signals.get("regex_hits", [])
-    if any(x in ["urgent", "immediate", "suspended"] for x in regex_hits):
-        triggers.append({"type": "Urgency", "description": "Uses high-pressure language to force action."})
-        explanation.append("Message uses urgency tactics to bypass critical thinking.")
+    triggers = []
+    explanation = []
 
-    # Rule: Financial Keywords
-    if any(x in ["bank", "verify", "account", "irs"] for x in regex_hits):
-        triggers.append({"type": "Financial", "description": "Requests sensitive financial actions."})
-    
+    # Rule: Financial Keywords (High Risk)
+    financial_words = ["otp", "bank", "password", "verify", "account", "pin"]
+    if any(x in regex_hits for x in financial_words):
+        risk_score += 30  # FORCE score up by 30
+        triggers.append({"type": "Financial", "description": "Requests sensitive financial or login info."})
+        explanation.append("The message asks for sensitive security details (OTP/Password).")
+
+    # Rule: Reward/Bait Keywords (Medium Risk)
+    bait_words = ["won", "winner", "prize", "reward", "claim", "lottery"]
+    if any(x in regex_hits for x in bait_words):
+        risk_score += 25  # FORCE score up by 25
+        triggers.append({"type": "Scam Bait", "description": "Promises unrealistic rewards."})
+        explanation.append("The message claims you have won a prize (common phishing tactic).")
+
+    # Rule: Urgency Keywords (Medium Risk)
+    urgency_words = ["urgent", "immediate", "suspended"]
+    if any(x in regex_hits for x in urgency_words):
+        risk_score += 20
+        triggers.append({"type": "Urgency", "description": "Uses pressure to force action."})
+
     # Rule: Safe Browsing
     if signals.get("safe_browsing") == "flagged":
-        triggers.append({"type": "Malware", "description": "Link matches Google Threat Database."})
-        explanation.append("The link provided is confirmed malicious by Google Safe Browsing.")
+        risk_score = 100
+        triggers.append({"type": "Malware", "description": "URL detected in Google Threat Database."})
 
-    # 5. Construct Final JSON
+    # 4. Final Score Math
+    risk_score = min(risk_score, 100) # Cap at 100
+    
+    # Define Verdict based on the new higher score
+    if risk_score > 75:
+        verdict = "HIGH_RISK"
+        color = "#FF4B4B" # Red
+    elif risk_score > 40:
+        verdict = "SUSPICIOUS"
+        color = "#FFA500" # Orange
+    else:
+        verdict = "SAFE"
+        color = "#00C851" # Green
+
+    # Add ML explanation at the top
+    if is_spam:
+        explanation.insert(0, f"ML Model detected spam patterns (Confidence: {int(confidence*100)}%).")
+    else:
+        explanation.insert(0, "ML Model analysis indicates this text follows normal communication patterns.")
+
     return {
         "risk_score": risk_score,
         "verdict": verdict,
@@ -72,18 +74,13 @@ def analyze_with_ml(text: str, signals: dict) -> dict:
         "confidence": round(confidence, 2),
         "analysis": {
             "psychological_triggers": triggers,
-           # NEW LOGIC: Only add the dictionary if the condition is true
             "technical_flags": [
-                item for item in [
-                    {"type": "Keywords", "description": f"Found: {', '.join(regex_hits)}", "severity": "medium"} if regex_hits else None,
-                    {"type": "ML Detection", "description": "Pattern matches spam dataset", "severity": "high"} if is_spam else None
-                ] if item is not None
+                {"type": "Keywords", "description": f"Found: {', '.join(regex_hits)}", "severity": "medium"} if regex_hits else None
             ]
         },
         "explanation": explanation
     }
 
-# Test Block
 if __name__ == "__main__":
     test = "URGENT: Your account is suspended. Click here."
     print(analyze_with_ml(test, {"regex_hits": ["urgent"], "safe_browsing": "clean"}))
