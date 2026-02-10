@@ -1,4 +1,4 @@
-# 🛡️ Fraud Guard: AI-Powered Phishing & Scam Detector
+# 🛡️ Fraud Guard: Phishing & Scam Detector
 
 **Fraud Guard** is a comprehensive tool designed to analyze suspicious text and URLs for fraudulent activity. It uses a multi-layered approach combining a BERT-based Machine Learning model with heuristic analysis to identify psychological triggers and technical red flags.
 
