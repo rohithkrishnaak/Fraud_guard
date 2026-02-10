@@ -1,55 +1,35 @@
-# 🛡️ Fraud Guard - AI-Powered Phishing & Fraud Detection
+# 🛡️ Fraud Guard: AI-Powered Phishing & Scam Detector
 
-![Project Status](https://img.shields.io/badge/Status-Active-success)
-![Python Version](https://img.shields.io/badge/Python-3.9%2B-blue)
-![Tech Stack](https://img.shields.io/badge/Stack-FastAPI%20%7C%20Streamlit%20%7C%20Gemini-orange)
+**Fraud Guard** is a comprehensive tool designed to analyze suspicious text and URLs for fraudulent activity. It uses a multi-layered approach combining a BERT-based Machine Learning model with heuristic analysis to identify psychological triggers and technical red flags.
 
-**Fraud Guard** is a "Compound AI System" designed to detect financial fraud, phishing attempts, and malicious URLs in real-time. Unlike simple AI wrappers, it uses a **multi-stage defense pipeline** combining deterministic rules (Regex), threat intelligence (Google Safe Browsing), and Generative AI (Gemini 1.5) for psychological analysis.
+## ✨ Key Features
 
-## 🚀 Key Features
-
-* **🔒 Privacy Firewall:** Automatically redacts PII (emails, phone numbers) *before* data leaves the local server to ensure user privacy.
-* **⚡ Hybrid Analysis:**
-    * **Static Engine:** Instantly flags known scam keywords (e.g., "urgent", "otp", "suspended") using Regex.
-    * **Threat Intel:** Verifies URLs against Google's **Safe Browsing Database** to detect known malware/phishing sites.
-    * **AI Reasoning:** Uses **Google Gemini 1.5** to detect psychological triggers (urgency, fear, greed) and tone anomalies.
-* **📝 Structured Explainability:** Returns a detailed JSON report with a color-coded Risk Score (0-100), technical flags, and human-readable explanations.
-* **⚡ Real-Time Latency:** Optimized for sub-2-second analysis speeds.
-
----
+* **ML-Powered Analysis**: Uses a fine-tuned BERT model to detect spam and phishing patterns with high confidence.
+* **Psychological Trigger Detection**: Identifies tactics like "Urgency" (e.g., "verify now") and "Authority Impersonation".
+* **Technical Flagging**: Detects "Malicious Links" redirecting to known phishing domains and "Header Mismatches" in emails.
+* **Multilingual Support**: Automatically detects and translates non-English text to English before analysis.
+* **Smart Sanitization**: Masks sensitive information like emails and phone numbers before processing to protect user privacy.
+* **URL Safety Check**: Integrated with Google Safe Browsing to flag known malicious URLs.
 
 ## 🛠️ Tech Stack
 
-| Component | Technology | Role |
-| :--- | :--- | :--- |
-| **Frontend** | [Streamlit](https://streamlit.io/) | Interactive User Interface |
-| **Backend API** | [FastAPI](https://fastapi.tiangolo.com/) | REST API & Logic Orchestration |
-| **AI Model** | [Google Gemini 1.5 Flash](https://ai.google.dev/) | Context-Aware Reasoning Engine |
-| **Threat Intel** | [Google Safe Browsing API](https://developers.google.com/safe-browsing) | Malicious URL Verification |
-| **Validation** | [Pydantic](https://docs.pydantic.dev/) | Data Schema & Output Enforcement |
+* **Backend**: FastAPI
+* **Frontend**: Streamlit
+* **ML Integration**: Hugging Face Transformers (`bert-tiny`)
+* **Data Validation**: Pydantic
+* **Utilities**: `urlextract`, `deep-translator`, `langdetect`
 
----
+## 🚀 Getting Started
 
-## ⚙️ How It Works (The Pipeline)
+### 1. Prerequisites
+* Python 3.9+
+* A Google Safe Browsing API Key (optional but recommended)
 
-1.  **Input:** User pastes suspicious text or URL.
-2.  **Sanitization:** System strips sensitive PII (Emails/Phones) to protect user identity.
-3.  **Signal Extraction:**
-    * Extracts URLs and checks them against Google's Threat Database.
-    * Scans for hard-coded scam patterns (e.g., "Verify Bank Account").
-4.  **Context Construction:** The system bundles the *Sanitized Text* + *Safe Browsing Status* + *Keyword Matches* into a context packet.
-5.  **AI Analysis:** The "Cybersecurity Expert" persona (LLM) analyzes the packet for intent and tone.
-6.  **Response:** The Frontend displays a Risk Score, Verdict (Safe/High Risk), and explanation.
-
----
-
-## 💻 Installation & Setup
-
-### Prerequisites
-* Python 3.9 or higher
-* Google Cloud API Key (for Gemini & Safe Browsing)
-
-### 1. Clone the Repository
+### 2. Installation
 ```bash
-git clone [https://github.com/yourusername/Fraud_guard.git](https://github.com/yourusername/Fraud_guard.git)
-cd Fraud_guard
+# Clone the repository
+git clone [https://github.com/your-username/fraud-guard.git](https://github.com/your-username/fraud-guard.git)
+cd fraud-guard
+
+# Install required dependencies
+pip install -r requirements.txt
