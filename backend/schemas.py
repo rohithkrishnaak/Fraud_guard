@@ -17,6 +17,7 @@ class Signals(BaseModel):
     safe_browsing: str
     phone_check: str
     llm_confidence: float
+    domain_age: Optional[int] = None  # <--- NEW FIELD ADDED HERE
 
 class Analysis(BaseModel):
     psychological_triggers: List[Trigger]
@@ -31,7 +32,7 @@ class Result(BaseModel):
 
 # --- Main Request & Response Models ---
 
-class FraudRequest(BaseModel):  # <--- THIS WAS MISSING
+class FraudRequest(BaseModel):
     text: str
 
 class FraudResponse(BaseModel):
